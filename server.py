@@ -1,9 +1,14 @@
 # ##################################################################################### #
+# Allen Blanton
+# CS 372 Fall 2022
+# Project 4: Client-Server Chat
+#
 # ADAPTED FROM 'echo-server.py'
 # https://realpython.com/python-sockets/#echo-client-and-server
 # ##################################################################################### #
 
 import socket
+import tictactoe
 
 HOST = "127.0.0.1"  # localhost
 PORT = 4343
@@ -18,18 +23,54 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.listen()
     conn, addr = s.accept()
     with conn:
-        print(f'[Connected by {addr}]')
-        print(f'[Waiting for message... (Reply "/q" to quit)]')
+        new_game = tictactoe.TicTacToe()
+        board = new_game.get_board()
+        print(f"[Connected by {addr}]")
+        print(f"[Welcome to Tic-Tac-Toe.]\n{board}\n")
+
         while True:
-            # Wait on the client's message
-            message = conn.recv(1024)
-            if not message:
-                print('[Chat closed.]')
+            # Wait on the client's move
+            print("[Waiting for the client...]")
+            conn.sendall(board.encode())
+            choice = conn.recv(1024).decode()
+            if not choice:
+                print('[Connection closed.]')
                 break
-            print('<', message.decode())
-            # Send reply to the client
-            reply = input('> ')
-            if reply == QUIT:
-                print('[Closing chat.]')
+            move_successful = False
+            while not move_successful:
+                move_successful = new_game.make_move(choice)
+                if not move_successful:
+                    # prompt again for a valid move
+                    conn.sendall('TRY AGAIN'.encode())
+                    choice = conn.recv(1024).decode()
+
+            # Check the state
+            print(f"\n{new_game.get_board()}\n")
+            state = new_game.get_state()
+            if state != 'CONTINUE':
+                conn.sendall(state.encode())
+                print(f"[{state}]")
+                print('[Closing connection.]')
                 break
-            conn.sendall(reply.encode())
+
+            # Make a move
+            print(f"[Player O, what's your move? (Send '/q' to quit)]")
+            choice = input('> ')
+            if choice == QUIT:
+                print('[Closing connection.]')
+                break
+            move_successful = False
+            while not move_successful:
+                move_successful = new_game.make_move(choice)
+                if not move_successful:
+                    print("[Please choose an available number.]")
+                    choice = input('> ')
+
+            # Check the state
+            board = new_game.get_board()
+            state = new_game.get_state()
+            if state != 'CONTINUE':
+                conn.sendall(f"{board}\n\n[{state}]".encode())
+                print(f"\n[{state}]")
+                print('[Closing connection]')
+                break
